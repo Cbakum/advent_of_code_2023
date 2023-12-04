@@ -12,6 +12,7 @@ fn main() -> io::Result<()> {
     // Initialize empty buffers for processing lines
     let mut top_row = LineData::new(LINE_LEN + 2); // add two for left/right buffers
     let mut mid_row = LineData::new(LINE_LEN + 2);
+    let mut low_row = LineData::new(LINE_LEN + 2);
 
     let mut part1_count: u32 = 0;
     let mut part2_count: u32 = 0;
@@ -19,11 +20,11 @@ fn main() -> io::Result<()> {
     for (_line_number, line) in reader.lines().enumerate() {
         let line = line?; // If line is error, halt program
 
-        let mut low_row = LineData::new(LINE_LEN + 2);
-        low_row.line_buff = format!(".{}.", line); // add left/right buffers for easier parsing
+        let mut next_line = LineData::new(LINE_LEN + 2);
+        next_line.line_buff = format!(".{}.", line); // add left/right buffers for easier parsing
 
         // Process Middle line
-        let (part1_increment, part2_increment) = process_line(&mut mid_row, &top_row, &low_row);
+        let (part1_increment, part2_increment) = process_line(&mut mid_row, &top_row, &mut low_row);
 
         part1_count += part1_increment;
         part2_count += part2_increment;
@@ -31,14 +32,23 @@ fn main() -> io::Result<()> {
         // shift window of lines to process
         top_row = mid_row;
         mid_row = low_row;
+        low_row = next_line;
     }
 
-    // Handle last line
-    let final_buff = LineData::new(LINE_LEN + 2);
+    // Handle last lines
+    // Pack lower lines in window with default buffer
+    for _i in 0..2 {
+        let final_buff = LineData::new(LINE_LEN + 2);
 
-    let (part1_increment, part2_increment) = process_line(&mut mid_row, &top_row, &final_buff);
-    part1_count += part1_increment;
-    part2_count += part2_increment;
+        let (part1_increment, part2_increment) = process_line(&mut mid_row, &top_row, &mut low_row);
+
+        part1_count += part1_increment;
+        part2_count += part2_increment;
+
+        top_row = mid_row;
+        mid_row = low_row;
+        low_row = final_buff;
+    }
 
     println!("Part one value: {}", part1_count);
     println!("Part two value: {}", part2_count);
@@ -46,12 +56,20 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u32, u32) {
+/// Takes the window of three lines as input.
+/// Locates and identifies all numbers in bottom row of window.
+/// Identifies all part one numbers in middle row
+/// Identifies all valid gears in middle row for part two
+///
+/// # Returns
+///
+/// (part1_increment: u32, part2_increment: u32)
+fn process_line(mid: &mut LineData, above: &LineData, below: &mut LineData) -> (u32, u32) {
     let mut num: u32 = 0;
     let mut location: Vec<usize> = Vec::new();
 
     // Find all numbers in line
-    for (index, c) in target.line_buff.char_indices() {
+    for (index, c) in below.line_buff.char_indices() {
         if c.is_digit(10) {
             // save index of digit
             location.push(index);
@@ -67,7 +85,7 @@ fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u
                     positions: location.clone(),
                 };
 
-                target.content.push(element);
+                below.content.push(element);
 
                 // Clear values for next number to be found
                 num = 0;
@@ -76,7 +94,7 @@ fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u
 
             // Find all gears for part two
             if c == '*' {
-                target.gear_pos.push(index);
+                below.gear_pos.push(index);
             }
         }
     }
@@ -84,7 +102,7 @@ fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u
     // Sum up all valid numbers for part one
     let mut sum: u32 = 0;
 
-    for element in &target.content {
+    for element in &mid.content {
         let (left, right) = element.get_boundary();
 
         // Check above line
@@ -92,7 +110,7 @@ fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u
 
         // Check neighbors
         if is_valid == false {
-            is_valid = process_range(&target.line_buff, left - 1, right + 1);
+            is_valid = process_range(&mid.line_buff, left - 1, right + 1);
         }
 
         // Check below line
@@ -110,19 +128,21 @@ fn process_line(target: &mut LineData, above: &LineData, below: &LineData) -> (u
     let mut gear_sum: u32 = 0;
 
     // Check any gears on middle line for valid neighbors
-    for gear in &target.gear_pos {
-        if let Some(num_counter) = find_neighbors(gear, &target, &above, &below) {
-            if num_counter.len() >= 2 {
-                //println!("{} and {}", num_counter[0], num_counter[1]);
+    for gear in &mid.gear_pos {
+        if let Some(num_counter) = find_neighbors(gear, &mid, &above, &below) {
+            if num_counter.len() == 2 {
                 gear_sum += num_counter[0] * num_counter[1];
             }
-        } else {
-            // Do something else
         }
     }
     (sum, gear_sum)
 }
 
+/// Takes the position of a single gear in the middle line of the window.
+/// Finds all valid neighbors of that gear.
+///
+/// # Returns
+/// Option(Vec<u32>): valid neighbors
 fn find_neighbors(
     gear: &usize,
     target: &LineData,
@@ -167,6 +187,7 @@ fn is_symbol(item: &char) -> bool {
     !item.is_digit(10) && *item != '.'
 }
 
+/// Looks for symbols across a defined range in a single line
 fn process_range(line: &str, left: usize, right: usize) -> bool {
     let mut symbol_found: bool = false;
     for (_i, c) in line.char_indices().skip(left).take(right - left + 1) {
@@ -179,14 +200,10 @@ fn process_range(line: &str, left: usize, right: usize) -> bool {
     symbol_found
 }
 
+/// pack lines with '.' character to the same length as inputs
+/// Used for borders on the input data
 fn pack_line(len: usize) -> String {
-    let mut dots = String::with_capacity(len);
-
-    for _ in 0..len {
-        dots.push('.');
-    }
-
-    dots
+    std::iter::repeat('.').take(len).collect()
 }
 
 struct LineData {
@@ -205,6 +222,7 @@ impl LineData {
     }
 }
 
+/// Numbers should store the value and the indices of all of their digits
 struct Numbers {
     number: u32,
     positions: Vec<usize>,
