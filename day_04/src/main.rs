@@ -7,25 +7,40 @@ fn main() -> io::Result<()> {
     let filename: String = "data.txt".to_string();
     let file: File = File::open(filename)?; // If open is error, halt program
     let reader = io::BufReader::new(file);
-
-    const COLON_INDEX: usize = 8;
-    const PIPE_INDEX: usize = 40;
-    const DECK_SIZE: usize = 190;
+    
+    let deck_size = reader.lines().count(); // This consumes the reader
 
     let mut point_total = 0;
     let mut cards_total = 0;
 
-    let mut card_copies: Vec<u32> = std::iter::repeat(1).take(DECK_SIZE).collect();
+    let mut card_copies: Vec<u32> = std::iter::repeat(1).take(deck_size).collect();
+
+    // Reopen File
+    let file: File = File::open("data.txt")?;
+    let reader = io::BufReader::new(file);
 
     // Iterate through each line
     for (_line_number, line) in reader.lines().enumerate() {
         let line = line?; // If line is error, halt program
 
-        let winning_nums: HashSet<&str> = line[COLON_INDEX + 1..PIPE_INDEX]
-            .trim()
+        let winning_nums: HashSet<u32> = line
+            .split(": ")
+            .nth(1)
+            .unwrap()
+            .split(" | ")
+            .nth(0)
+            .unwrap()
             .split_whitespace()
+            .filter_map(|s| s.parse().ok())
             .collect();
-        let match_nums: Vec<&str> = line[PIPE_INDEX + 1..].trim().split_whitespace().collect();
+
+        let match_nums: HashSet<u32> = line
+            .split(" | ")
+            .nth(1)
+            .unwrap()
+            .split_whitespace()
+            .filter_map(|s| s.parse().ok())
+            .collect();
 
         let (card_value, wins) = process_line(winning_nums, match_nums);
 
@@ -48,22 +63,16 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn process_line(set: HashSet<&str>, matches: Vec<&str>) -> (u32, usize) {
-    let mut points: u32 = 0; // For part one
-    let mut scoring: bool = false;
-    let mut wins: usize = 0; // For part two
+fn process_line(win_set: HashSet<u32>, match_set: HashSet<u32>) -> (u32, usize) {
+    let mut points: u32 = 0;
 
-    for num in matches {
-        if set.contains(&num) {
-            if !scoring {
-                scoring = true;
-                points = 1;
-                wins = 1;
-            } else {
-                points = points * 2;
-                wins += 1;
-            }
-        }
+    let intersections: HashSet<u32> = win_set.intersection(&match_set).cloned().collect();
+    let num_matches = intersections.len();
+
+    let wins = num_matches;
+    if num_matches > 0 {
+        points = 2u32.pow(num_matches as u32 - 1);
     }
+    
     (points, wins)
 }
