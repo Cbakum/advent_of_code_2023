@@ -1,4 +1,3 @@
-use regex::Regex;
 use num_integer::lcm;
 use std::collections::HashMap;
 use std::fs::File;
@@ -23,25 +22,42 @@ fn main() -> io::Result<()> {
         let line = line?; // If line is error, halt program
 
         if line_number > 1 {
-            let re = Regex::new(r"(\w+) = \((\w+), (\w+)\)").unwrap();
+            let location: String = line
+                .split(" = ")
+                .nth(0)
+                .unwrap()
+                .trim()
+                .to_string();
 
-            if let Some(captures) = re.captures(&line) {
-                // Extract the three strings from the captures
-                let location = captures[1].to_string();
-                let left_pos = captures[2].to_string();
-                let right_pos = captures[3].to_string();
+            let left: String = line
+                .split("(")
+                .nth(1)
+                .unwrap()
+                .split(",")
+                .nth(0)
+                .unwrap()
+                .trim()
+                .to_string();
 
-                if location.chars().nth(2).unwrap() == 'A' {
-                    // Collect all starting positions for ghosts
-                    ghost_start_positions.push(location.clone());
-                }
+            let right: String = line
+                .split(", ")
+                .nth(1)
+                .unwrap()
+                .split(")")
+                .nth(0)
+                .unwrap()
+                .trim()
+                .to_string();
 
-                // Defines the rules for navigating the network
-                network.insert(location, (left_pos, right_pos));
-            } else {
-                panic!("Regex failed");
+            if location.chars().nth(2).unwrap() == 'A' {
+                // Collect all starting positions for ghosts
+                ghost_start_positions.push(location.clone());
             }
-        } else {
+        
+            network.insert(location, (left, right));
+        } 
+        
+        else {
             if !line.is_empty() {
                 directions = line.trim().chars().collect();
             }
