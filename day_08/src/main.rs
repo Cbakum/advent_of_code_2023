@@ -1,13 +1,10 @@
 use regex::Regex;
+use num_integer::lcm;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
 
 fn main() -> io::Result<()> {
-
-    /************************************************************/
-    //                          PART ONE                        //
-    /************************************************************/
 
     // open file to search through data
     let filename: String = "data.txt".to_string();
@@ -16,6 +13,10 @@ fn main() -> io::Result<()> {
 
     let mut directions: Vec<char> = Vec::new();
     let mut network: HashMap<String, (String, String)> = HashMap::new();
+
+    // For part two
+    let mut ghost_start_positions: Vec<String> = Vec::new();
+    let mut lcm_accumulator: Vec<u64> = Vec::new();
 
     // Iterate through each line
     for (line_number, line) in reader.lines().enumerate() {
@@ -30,72 +31,76 @@ fn main() -> io::Result<()> {
                 let left_pos = captures[2].to_string();
                 let right_pos = captures[3].to_string();
 
+                if location.chars().nth(2).unwrap() == 'A' {
+                    // Collect all starting positions for ghosts
+                    ghost_start_positions.push(location.clone());
+                }
+
+                // Defines the rules for navigating the network
                 network.insert(location, (left_pos, right_pos));
+            } else {
+                panic!("Regex failed");
             }
-            else {
-                println!("Regex failed");
-                break;
-            }
-        }
-        else {
+        } else {
             if !line.is_empty() {
                 directions = line.trim().chars().collect();
             }
         }
     }
 
-    // Navigate the network
-    let mut navigator = Navigator::init(directions, network);
-    let destination = "ZZZ".to_string();
+    for ghost in ghost_start_positions {
+        // Navigate the network
+        let mut navigator = Navigator::init(ghost, directions.len());
 
-    while navigator.location != destination {
-        navigator.step();
+        while navigator.location.chars().nth(2).unwrap() != 'Z' {
+            navigator.step(&directions, &network);
+        }
+
+        // Find all loop lengths for Zs
+        println!("It took {} steps to get from AAA to {}", navigator.steps, navigator.location);
+        lcm_accumulator.push(navigator.steps);
     }
 
-    println!("It took {} steps to get from AAA to ZZZ", navigator.steps);
+    let arrival_time = lcm_of_vector(&lcm_accumulator);
 
-    
+    println!("It took {} steps for all ghosts to arrive at Zs", arrival_time);
 
     Ok(())
 }
 
+fn lcm_of_vector(numbers: &[u64]) -> u64 {
+    numbers.iter().fold(1, |acc, &num| lcm(acc, num))
+}
 struct Navigator {
-    steps: u32,
+    steps: u64,
     location: String,
     curr_index: usize,
     max_index: usize,
-    directions: Vec<char>,
-    network: HashMap<String, (String, String)>
 }
 
 impl Navigator {
-    fn init(directions: Vec<char>, map: HashMap<String, (String, String)>) -> Self {
-        let vec_size = directions.len();
-        let loc = "AAA".to_string(); // Start location
-
+    fn init(start_pos: String, vec_size: usize) -> Self {
         Self {
             steps: 0, // Start at zero
-            location: loc,
+            location: start_pos,
             curr_index: 0, // Start at zero
             max_index: vec_size,
-            directions: directions,
-            network: map
         }
     }
 
-    fn step(&mut self) {
-        let step_dir = match self.directions[self.curr_index] {
+    fn step(&mut self, directions: &Vec<char>, map: &HashMap<String, (String, String)>) {
+        let step_dir = match directions[self.curr_index] {
             'L' => 0 as usize,
             'R' => 1 as usize,
             _ => panic!("Unexpected direction"),
         };
-        
+
         self.curr_index += 1;
         if self.curr_index == self.max_index {
             self.curr_index = 0;
         }
-        
-        let tuple = self.network.get(&self.location).unwrap();
+
+        let tuple = map.get(&self.location).unwrap();
 
         self.location = match step_dir {
             0 => tuple.0.clone(),
@@ -103,9 +108,5 @@ impl Navigator {
             _ => panic!("Unexpected step direction"),
         };
         self.steps += 1;
-        
-
-
     }
-
 }
