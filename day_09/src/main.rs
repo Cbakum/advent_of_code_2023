@@ -55,10 +55,8 @@ struct Sequence {
 
 impl Sequence {
     fn new(history: Vec<i32>) -> Self {
-        let mut diff: Vec<Vec<i32>> = Vec::new();
-        diff.push(history);
-        Self { difference: diff }
-    }
+        Self { difference: vec![history] }
+    }  
 
     fn find_difference_recursive(&mut self, list: &Vec<i32>) {
         let delta = find_difference(list);
